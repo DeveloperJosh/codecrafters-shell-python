@@ -20,24 +20,22 @@ def main():
         if user_command == "exit":
             break
         elif user_command == "echo":
-            if user_args is None:
-                print("")
-                continue
-            else:
-                print(user_args[0])
-                continue
+            print(*user_args) if user_args else print("")
+            continue
         elif user_command == "type":
             if user_args:
                 type_command = user_args[0]
                 if type_command in valid_commands:
-                    print(f"{type_command}: is a shell builtin")
+                    print(f"{type_command} is a shell builtin")
                     continue
                 else:
                     print(f"{type_command}: not found")
                     continue
+            else:
+                print("usage: type <command>")
+                continue
         else:
             continue
-        break
     return 0
 
 
