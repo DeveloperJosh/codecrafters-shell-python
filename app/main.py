@@ -3,7 +3,7 @@ import sys
 
 def main():
     
-    valid_commands = {"exit"}
+    valid_commands = {"exit", "echo"}
     
     while True:
         sys.stdout.write("$ ")
@@ -19,6 +19,13 @@ def main():
             continue
         if user_command == "exit":
             break
+        if user_command == "echo":
+            if user_args is None:
+                print("")
+                continue
+            else:
+                print(user_args[0])
+                continue
         break
     return 0
 
