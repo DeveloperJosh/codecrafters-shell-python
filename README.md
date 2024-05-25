@@ -1,32 +1,50 @@
-[![progress-banner](https://backend.codecrafters.io/progress/shell/05c63a92-f26b-4e58-8546-73de6f342d75)](https://app.codecrafters.io/users/DeveloperJosh?r=2qF)
+Python Shell
+This is a custom Python shell that provides various built-in commands for interacting with the file system and obtaining system information.
 
-This is a starting point for Python solutions to the
-["Build Your Own Shell" Challenge](https://app.codecrafters.io/courses/shell/overview).
+Features
+File Management: Commands for listing directory contents, creating and removing files and directories, moving and copying files, and more.
+System Information: Commands to display system information, such as uptime, memory usage, and currently running processes.
+Text Processing: Commands for sorting, counting, and searching within files.
+Getting Started
+Prerequisites
+Python 3.x
+Installation
+Clone the repository:
 
-_Add a description of your course here_
-
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
-
-# Passing the first stage
-
-The entry point for your `shell` implementation is in `app/main.py`. Study and
-uncomment the relevant code, and push your changes to pass the first stage:
+```
+Copy code
+git clone https://github.com/yourusername/python-shell.git
+cd python-shell
+```
+Usage
+Run the shell:
 
 ```sh
-git add .
-git commit -m "pass 1st stage" # any msg
-git push origin master
+python shell.py
 ```
+Example Commands
+```sh
+Copy code
+# Print the current working directory
+pwd
 
-Time to move on to the next stage!
+# List directory contents
+ls
 
-# Stage 2 & beyond
+# Create a new directory
+mkdir new_directory
 
-Note: This section is for stages 2 and beyond.
+# Display system information
+sysinfo
 
-1. Ensure you have `python (3.11)` installed locally
-1. Run `./your_shell.sh` to run your program, which is implemented in
-   `app/main.py`.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+# Print lines matching a pattern
+grep "search_term" file.txt
+```
+Built-in Help
+Type help in the shell to display information about available commands.
+
+```sh
+help
+```
+Contributing
+Contributions are welcome! Please open an issue or submit a pull request.
