@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 from utils.system_info import get_cpu_name, get_size
 from datetime import datetime
@@ -7,6 +8,10 @@ import psutil
 from utils.path_utils import get_type
 from prompt_toolkit import print_formatted_text
 from prompt_toolkit.formatted_text import HTML
+import glob
+import stat
+import time
+import concurrent.futures
 
 def handle_builtin_command(user_command: str, user_args: list) -> None:
     try:
@@ -46,17 +51,59 @@ def change_directory(args):
     target_directory = args[0] if args else os.path.expanduser("~")
     try:
         os.chdir(target_directory)
-    except (FileNotFoundError, NotADirectoryError) as e:
+    except (FileNotFoundError, NotADirectoryError, PermissionError) as e:
         print(f"cd: {e}")
+
+def get_mode(file_stat):
+    is_dir = 'd' if stat.S_ISDIR(file_stat.st_mode) else '-'
+    owner_perm = 'r' if file_stat.st_mode & stat.S_IRUSR else '-'
+    owner_perm += 'w' if file_stat.st_mode & stat.S_IWUSR else '-'
+    owner_perm += 'x' if file_stat.st_mode & stat.S_IXUSR else '-'
+    group_perm = 'r' if file_stat.st_mode & stat.S_IRGRP else '-'
+    group_perm += 'w' if file_stat.st_mode & stat.S_IWGRP else '-'
+    group_perm += 'x' if file_stat.st_mode & stat.S_IXGRP else '-'
+    other_perm = 'r' if file_stat.st_mode & stat.S_IROTH else '-'
+    other_perm += 'w' if file_stat.st_mode & stat.S_IWOTH else '-'
+    other_perm += 'x' if file_stat.st_mode & stat.S_IXOTH else '-'
+    return f'{is_dir}{owner_perm}{group_perm}{other_perm}'
+
+def format_time(epoch_time):
+    return time.strftime('%Y-%m-%d %I:%M %p', time.localtime(epoch_time))
 
 def list_directory(args):
     targets = args if args else ["."]
-    for arg in targets:
+    exclude_patterns = [
+        re.compile(r'^NTUSER\.DAT'),
+        re.compile(r'^ntuser\.dat\.LOG\d+'),
+        re.compile(r'^NTUSER\.DAT\{[a-f0-9-]+\}\.TM\.blf$'),
+        re.compile(r'^NTUSER\.DAT\{[a-f0-9-]+\}\.TMContainer\d+\.regtrans-ms$'),
+        re.compile(r'^ntuser\.ini$')
+    ]
+
+    for target in targets:
         try:
-            for file in os.listdir(arg):
-                print(file)
+            pattern = os.path.join(target, '*')  # Matches all files except hidden ones
+            files = glob.glob(pattern)
+            print(f"Directory: {os.path.abspath(target)}")
+            print("Mode                 LastWriteTime         Length Name")
+            print("----                 -------------         ------ ----")
+            for file in files:
+                base_name = os.path.basename(file)
+                if not base_name.startswith(".") and not any(pat.match(base_name) for pat in exclude_patterns):
+                    try:
+                        file_stat = os.stat(file)
+                        mode = get_mode(file_stat)
+                        last_write_time = format_time(file_stat.st_mtime)
+                        length = file_stat.st_size if not stat.S_ISDIR(file_stat.st_mode) else ''
+                        print(f'{mode:<20} {last_write_time:<20} {length:<6} {base_name}')
+                    except FileNotFoundError:
+                        print(f"ls: cannot access '{file}': No such file or directory")
+                    except PermissionError:
+                        print(f"ls: cannot access '{file}': Permission denied")
         except FileNotFoundError:
-            print(f"ls: cannot access '{arg}': No such file or directory")
+            print(f"ls: cannot access '{target}': No such file or directory")
+        except PermissionError:
+            print(f"ls: cannot access '{target}': Permission denied")
 
 def show_help():
     print_formatted_text(HTML('<ansiyellow>Available Commands</ansiyellow>\n\n'))
@@ -90,22 +137,42 @@ def show_help():
     }
     for cmd, desc in commands.items():
         print(f"{cmd}: {desc}")
+        
+def get_cpu_usage():
+    return psutil.cpu_percent(interval=1)
+
+def get_memory_info():
+    return psutil.virtual_memory()
 
 def show_sysinfo():
-    print_formatted_text(HTML('<ansiyellow>System Information</ansiyellow>\n\nPlease Hold\n'))
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    os_info = platform.uname()
-    cpu_name = get_cpu_name()
-    cpu_usage = psutil.cpu_percent(interval=1)
-    svmem = psutil.virtual_memory()
+    try:
+        print_formatted_text(HTML('<ansiyellow>System Information</ansiyellow>\n\nPlease Hold\n'))
+        
+        # Start concurrent tasks
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            cpu_usage_future = executor.submit(get_cpu_usage)
+            memory_info_future = executor.submit(get_memory_info)
+            
+            # Main thread retrieves other information
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            os_info = platform.uname()
+            cpu_name = get_cpu_name()
+            cpu_cores = psutil.cpu_count(logical=False)
+        
+            # Wait for concurrent tasks to complete
+            cpu_usage = cpu_usage_future.result()
+            svmem = memory_info_future.result()
 
-    print_formatted_text(HTML(f'<ansigreen>Current Time:</ansigreen> {current_time}'))
-    print_formatted_text(HTML(f'<ansigreen>OS:</ansigreen> {os_info.system} {os_info.release} {os_info.version}'))
-    print_formatted_text(HTML(f'<ansigreen>CPU:</ansigreen> {cpu_name}'))
-    print_formatted_text(HTML(f'<ansigreen>CPU Cores:</ansigreen> {psutil.cpu_count(logical=False)}'))
-    print_formatted_text(HTML(f'<ansigreen>CPU Usage:</ansigreen> {cpu_usage}%'))
-    print_formatted_text(HTML(f'<ansigreen>RAM:</ansigreen> {get_size(svmem.total)}'))
-    print_formatted_text(HTML(f'<ansigreen>Memory Used:</ansigreen> {get_size(svmem.used)} / {get_size(svmem.total)}'))
+        # Print system information
+        print_formatted_text(HTML(f'<ansigreen>Current Time:</ansigreen> {current_time}'))
+        print_formatted_text(HTML(f'<ansigreen>OS:</ansigreen> {os_info.system} {os_info.release} {os_info.version}'))
+        print_formatted_text(HTML(f'<ansigreen>CPU:</ansigreen> {cpu_name}'))
+        print_formatted_text(HTML(f'<ansigreen>CPU Cores:</ansigreen> {cpu_cores}'))
+        print_formatted_text(HTML(f'<ansigreen>CPU Usage:</ansigreen> {cpu_usage}%'))
+        print_formatted_text(HTML(f'<ansigreen>RAM:</ansigreen> {get_size(svmem.total)}'))
+        print_formatted_text(HTML(f'<ansigreen>Memory Used:</ansigreen> {get_size(svmem.used)} / {get_size(svmem.total)}'))
+    except Exception as e:
+        print(f"sysinfo: An error occurred: {e}")
 
 def print_file_content(file):
     try:
@@ -113,18 +180,32 @@ def print_file_content(file):
             print(f.read())
     except FileNotFoundError:
         print(f"cat: {file}: No such file or directory")
+    except PermissionError:
+        print(f"cat: {file}: Permission denied")
+    except Exception as e:
+        print(f"cat: An error occurred: {e}")
 
 def make_directory(directory):
     try:
         os.mkdir(directory)
     except FileExistsError:
         print(f"mkdir: cannot create directory '{directory}': File exists")
+    except PermissionError:
+        print(f"mkdir: cannot create directory '{directory}': Permission denied")
+    except Exception as e:
+        print(f"mkdir: An error occurred: {e}")
 
 def remove_directory(directory):
     try:
         os.rmdir(directory)
     except FileNotFoundError:
         print(f"rmdir: failed to remove '{directory}': No such file or directory")
+    except PermissionError:
+        print(f"rmdir: failed to remove '{directory}': Permission denied")
+    except OSError:
+        print(f"rmdir: failed to remove '{directory}': Directory not empty")
+    except Exception as e:
+        print(f"rmdir: An error occurred: {e}")
 
 def move_file(args):
     if len(args) != 2:
@@ -135,6 +216,10 @@ def move_file(args):
             os.rename(src, dest)
         except FileNotFoundError:
             print(f"mv: cannot move '{src}': No such file or directory")
+        except PermissionError:
+            print(f"mv: cannot move '{src}': Permission denied")
+        except Exception as e:
+            print(f"mv: An error occurred: {e}")
 
 def copy_file(args):
     if len(args) != 2:
@@ -147,10 +232,19 @@ def copy_file(args):
                     new_f.write(f.read())
         except FileNotFoundError:
             print(f"cp: cannot copy '{src}': No such file or directory")
+        except PermissionError:
+            print(f"cp: cannot copy '{src}': Permission denied")
+        except Exception as e:
+            print(f"cp: An error occurred: {e}")
 
 def touch_file(file):
-    with open(file, "w"):
-        pass
+    try:
+        with open(file, "w"):
+            pass
+    except PermissionError:
+        print(f"touch: cannot touch '{file}': Permission denied")
+    except Exception as e:
+        print(f"touch: An error occurred: {e}")
 
 def print_head(file):
     try:
@@ -159,6 +253,10 @@ def print_head(file):
                 print(f.readline().strip())
     except FileNotFoundError:
         print(f"head: cannot open '{file}' for reading: No such file or directory")
+    except PermissionError:
+        print(f"head: cannot open '{file}' for reading: Permission denied")
+    except Exception as e:
+        print(f"head: An error occurred: {e}")
 
 def print_tail(file):
     try:
@@ -168,10 +266,15 @@ def print_tail(file):
                 print(line.strip())
     except FileNotFoundError:
         print(f"tail: cannot open '{file}' for reading: No such file or directory")
+    except PermissionError:
+        print(f"tail: cannot open '{file}' for reading: Permission denied")
+    except Exception as e:
+        print(f"tail: An error occurred: {e}")
 
 def grep_pattern(args):
     if not args:
         print("grep: missing search pattern")
+        return
     search_pattern = args[0]
     for file in args[1:]:
         try:
@@ -181,6 +284,10 @@ def grep_pattern(args):
                         print(line.strip())
         except FileNotFoundError:
             print(f"grep: {file}: No such file or directory")
+        except PermissionError:
+            print(f"grep: {file}: Permission denied")
+        except Exception as e:
+            print(f"grep: An error occurred: {e}")
 
 def word_count(file):
     try:
@@ -189,6 +296,10 @@ def word_count(file):
             print(f"{len(lines)} {file}")
     except FileNotFoundError:
         print(f"wc: {file}: No such file or directory")
+    except PermissionError:
+        print(f"wc: {file}: Permission denied")
+    except Exception as e:
+        print(f"wc: An error occurred: {e}")
 
 def sort_file(file):
     try:
@@ -198,6 +309,10 @@ def sort_file(file):
                 print(line.strip())
     except FileNotFoundError:
         print(f"sort: {file}: No such file or directory")
+    except PermissionError:
+        print(f"sort: {file}: Permission denied")
+    except Exception as e:
+        print(f"sort: An error occurred: {e}")
 
 def unique_lines(file):
     try:
@@ -207,23 +322,40 @@ def unique_lines(file):
                 print(line.strip())
     except FileNotFoundError:
         print(f"uniq: {file}: No such file or directory")
+    except PermissionError:
+        print(f"uniq: {file}: Permission denied")
+    except Exception as e:
+        print(f"uniq: An error occurred: {e}")
 
 def show_uptime():
-    uptime = datetime.now() - datetime.fromtimestamp(psutil.boot_time())
-    print(f"up {uptime}")
+    try:
+        uptime = datetime.now() - datetime.fromtimestamp(psutil.boot_time())
+        print(f"up {uptime}")
+    except Exception as e:
+        print(f"uptime: An error occurred: {e}")
 
 def show_processes():
-    for process in psutil.process_iter(['pid', 'name', 'username']):
-        print(f"{process.info['pid']} {process.info['name']} {process.info['username']}")
+    try:
+        for process in psutil.process_iter(['pid', 'name', 'username']):
+            print(f"{process.info['pid']} {process.info['name']} {process.info['username']}")
+    except Exception as e:
+        print(f"ps: An error occurred: {e}")
 
 def kill_process(pid):
     try:
         os.kill(int(pid), 9)
     except ProcessLookupError:
         print(f"kill: {pid}: No such process")
+    except PermissionError:
+        print(f"kill: {pid}: Permission denied")
+    except Exception as e:
+        print(f"kill: An error occurred: {e}")
 
 def show_memory():
-    svmem = psutil.virtual_memory()
-    print(f"Total: {get_size(svmem.total)}")
-    print(f"Used: {get_size(svmem.used)}")
-    print(f"Free: {get_size(svmem.free)}")
+    try:
+        svmem = psutil.virtual_memory()
+        print(f"Total: {get_size(svmem.total)}")
+        print(f"Used: {get_size(svmem.used)}")
+        print(f"Free: {get_size(svmem.free)}")
+    except Exception as e:
+        print(f"free: An error occurred: {e}")
