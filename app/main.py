@@ -1,5 +1,6 @@
 import os
-from prompt_toolkit import prompt
+from rlcompleter import Completer
+from prompt_toolkit import PromptSession, prompt
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import InMemoryHistory
 from handlers.builtins import handle_builtin_command
@@ -14,7 +15,7 @@ def main():
         try:
         ##user_input = prompt(HTML(f'<ansigreen>{os.getcwd()} $ </ansigreen>'), history=history).strip().split()
          # (shell) PS E:\py-shell>
-          user_input = prompt(HTML(f'<ansigreen>(Shell)</ansigreen> {os.getcwd()} $ '), history=history).strip().split()
+         user_input = prompt(HTML(f'<ansigreen>(Shell)</ansigreen> {os.getcwd()} $ '), history=history, ).strip().split()
         except EOFError:
             break
         if not user_input:

@@ -6,7 +6,7 @@ from datetime import datetime
 import platform
 import psutil
 from utils.path_utils import get_type
-from prompt_toolkit import print_formatted_text
+from prompt_toolkit import print_formatted_text, PromptSession
 from prompt_toolkit.formatted_text import HTML
 import glob
 import stat
@@ -48,11 +48,18 @@ def handle_builtin_command(user_command: str, user_args: list) -> None:
         print(f"An error occurred: {e}")
 
 def change_directory(args):
-    target_directory = args[0] if args else os.path.expanduser("~")
-    try:
-        os.chdir(target_directory)
-    except (FileNotFoundError, NotADirectoryError, PermissionError) as e:
-        print(f"cd: {e}")
+    if not args:
+        os.chdir(os.path.expanduser("~"))
+    else:
+        new_dir = args[0]
+        try:
+            os.chdir(new_dir)
+        except FileNotFoundError:
+            print(f"cd: {new_dir}: No such file or directory")
+        except PermissionError:
+            print(f"cd: {new_dir}: Permission denied")
+        except Exception as e:
+            print(f"cd: An error occurred: {e}")
 
 def get_mode(file_stat):
     is_dir = 'd' if stat.S_ISDIR(file_stat.st_mode) else '-'
@@ -334,10 +341,44 @@ def show_uptime():
     except Exception as e:
         print(f"uptime: An error occurred: {e}")
 
+
 def show_processes():
     try:
-        for process in psutil.process_iter(['pid', 'name', 'username']):
-            print(f"{process.info['pid']} {process.info['name']} {process.info['username']}")
+        processes = list(psutil.process_iter(attrs=[
+            'pid', 'name', 'username', 'cpu_percent', 'memory_percent', 
+            'memory_info', 'status', 'create_time'
+        ]))
+        
+        # Sort processes by name to group them
+        processes.sort(key=lambda p: p.info['name'])
+        
+        print(f"{'USER':<20} {'PID':<5} {'%CPU':<4} {'%MEM':<4} {'VSZ':<8} {'RSS':<8} {'TTY':<7} {'STAT':<7} {'START':<8} {'TIME':<12} {'COMMAND'}")
+        
+        for proc in processes:
+            try:
+                pinfo = proc.info
+                if not pinfo['username']:
+                    continue
+                username = pinfo['username']
+                pid = pinfo['pid']
+                cpu_percent = pinfo['cpu_percent']
+                memory_percent = pinfo['memory_percent']
+                vms = get_size(pinfo['memory_info'].vms) if pinfo['memory_info'] else '0B'
+                rss = get_size(pinfo['memory_info'].rss) if pinfo['memory_info'] else '0B'
+                status = pinfo['status'] if pinfo['status'] else 'N/A'
+                create_time = datetime.fromtimestamp(pinfo['create_time']) if pinfo['create_time'] else datetime.now()
+                start_time = create_time.strftime('%H:%M:%S')
+                run_time = str(datetime.now() - create_time).split('.')[0]  # format to remove microseconds
+                
+                name = pinfo['name']
+                # Append PID to name if there are duplicates
+                same_name_count = len([p for p in processes if p.info['name'] == pinfo['name']])
+                if same_name_count > 1:
+                    name = f"{pinfo['name']}[{pid}]"
+                
+                print(f"{username:<20} {pid:<5} {cpu_percent:<4.1f} {memory_percent:<4.1f} {vms:<8} {rss:<8} {'?':<7} {status:<7} {start_time:<8} {run_time:<12} {name}")
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
     except Exception as e:
         print(f"ps: An error occurred: {e}")
 
