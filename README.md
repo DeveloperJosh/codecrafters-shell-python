@@ -24,7 +24,6 @@ python shell.py
 ```
 Example Commands
 ```sh
-Copy code
 # Print the current working directory
 pwd
 
