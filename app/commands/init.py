@@ -5,7 +5,9 @@ from .type import TypeCommand
 from .sysinfo import SysInfoCommand
 from .help import HelpCommand
 from .clear import ClearCommand
-from .builtin import LsCommand, PwdCommand, KillCommand, ExitCommand, CdCommand
+from .ps import Ps
+from .code import CodeCommand
+from .builtin import LsCommand, PwdCommand, KillCommand, ExitCommand, CdCommand, CatCommand
 
 # Command registry
 command_registry = {
@@ -18,7 +20,10 @@ command_registry = {
     "pwd": PwdCommand(),
     "kill": KillCommand(),
     "exit": ExitCommand(),
-    "cd": CdCommand()
+    "cd": CdCommand(),
+    "ps": Ps(),
+    "code": CodeCommand(),
+    "cat": CatCommand()
 }
 
 def get_command(command_name):

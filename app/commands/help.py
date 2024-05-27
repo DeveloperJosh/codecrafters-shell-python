@@ -2,14 +2,21 @@
 
 class HelpCommand:
     def execute(self, args):
-        print("Available commands:")
-        print("cd <path>: Change the current working directory")
-        print("echo <text>: Print text to the console")
-        print("type <filename>: Print the contents of a file")
-        print("sysinfo: Print system information")
-        print("help: Print this help message")
-        print("clear: Clear the console screen")
-        print("ls: List files and directories")
-        print("pwd: Print the current working directory")
-        print("kill <pid>: Kill a process by ID")
-        print("exit: Exit the shell")
+        help = """
+        Built-in Commands:
+        -----------------
+        help: Shows this help message
+        code: The in house code editor (BETA)
+        echo: Prints the arguments to the standard output
+        type: Prints the contents of a file
+        sysinfo: Prints system information
+        clear: Clears the screen
+        ls: Lists files in the current directory
+        pwd: Prints the current working directory
+        kill: Kills a process by ID
+        exit: Exits the shell
+        cd: Changes the current directory
+        cat: Prints the contents of a file
+        ps: Lists all running processes
+        """
+        print(help)

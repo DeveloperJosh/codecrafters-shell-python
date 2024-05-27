@@ -31,7 +31,10 @@ class LsCommand:
         re.compile(r'^ntuser\.dat\.LOG\d+'),
         re.compile(r'^NTUSER\.DAT\{[a-f0-9-]+\}\.TM\.blf$'),
         re.compile(r'^NTUSER\.DAT\{[a-f0-9-]+\}\.TMContainer\d+\.regtrans-ms$'),
-        re.compile(r'^ntuser\.ini$')
+        re.compile(r'^ntuser\.ini$'),
+        # remove files with @ and $ in the name
+        re.compile(r'@'),
+        re.compile(r'\$')
      ]
 
      for target in targets:
@@ -96,3 +99,18 @@ class CdCommand:
             print(f"cd: {path}: Not a directory")
         except PermissionError:
             print(f"cd: {path}: Permission denied")
+            
+class CatCommand:
+    def execute(self, args):
+        if not args:
+            print("cat: missing operand")
+            return
+        try:
+            with open(args[0], 'r') as file:
+                print(file.read())
+        except FileNotFoundError:
+            print(f"cat: {args[0]}: No such file or directory")
+        except IsADirectoryError:
+            print(f"cat: {args[0]}: Is a directory")
+        except PermissionError:
+            print(f"cat: {args[0]}: Permission denied")
