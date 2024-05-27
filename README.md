@@ -12,7 +12,6 @@ Installation
 Clone the repository:
 
 ```
-Copy code
 git clone https://github.com/yourusername/python-shell.git
 cd python-shell
 ```
